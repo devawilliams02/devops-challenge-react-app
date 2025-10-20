@@ -1,0 +1,79 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    name: Deploy to Production Environment
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '15'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Application
+        run: npm run build
+        env:
+          REACT_APP_ENV: prod
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        working-directory: terraform/environments/prod
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/prod
+        run: terraform apply -auto-approve
+
+      - name: Get S3 Bucket Name
+        id: bucket
+        working-directory: terraform/environments/prod
+        run: |
+          BUCKET=$(terraform output -raw website_bucket_name)
+          echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Sync Build to S3
+        run: |
+          aws s3 sync build/ s3://${{ steps.bucket.outputs.bucket_name }}/ --delete
+
+      - name: Get CloudFront Distribution ID
+        id: cloudfront
+        working-directory: terraform/environments/prod
+        run: |
+          DIST_ID=$(terraform output -raw cloudfront_distribution_id)
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.cloudfront.outputs.distribution_id }} \
+            --paths "/*"
+
+      - name: Deployment Complete
+        run: |
+          echo "Deployment to Production environment successful!"
+          terraform output -raw cloudfront_domain_name
