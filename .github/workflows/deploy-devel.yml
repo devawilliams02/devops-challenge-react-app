@@ -34,7 +34,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ap-south-1
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -48,6 +48,10 @@ jobs:
       - name: Terraform Apply
         working-directory: terraform/environments/devel
         run: terraform apply -auto-approve
+
+      - name: Debug Terraform Output
+        working-directory: terraform/environments/devel
+        run: terraform output website_bucket_name
 
       - name: Get S3 Bucket Name
         id: bucket
@@ -67,7 +71,7 @@ jobs:
         shell: bash
         run: |
           DIST_ID=$(terraform output -raw cloudfront_distribution_id)
-          echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
 
       - name: Invalidate CloudFront Cache
         run: |
