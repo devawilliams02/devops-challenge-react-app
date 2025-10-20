@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           BUCKET=$(terraform output -raw website_bucket_name)
-          echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
+          echo "bucket_name=$BUCKET" | $GITHUB_OUTPUT
 
       - name: Sync Build to S3
         run: |
@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           DIST_ID=$(terraform output -raw cloudfront_distribution_id)
-          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+          echo "distribution_id=$DIST_ID" | $GITHUB_OUTPUT
 
       - name: Invalidate CloudFront Cache
         run: |
