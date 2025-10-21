@@ -1,6 +1,6 @@
 name: Deploy to Development
 
-on: 
+on:
   push:
     branches:
       - devel
@@ -49,62 +49,27 @@ jobs:
         working-directory: terraform/environments/devel
         run: terraform apply -auto-approve
 
+      # ✅ FIXED: Clean Terraform output capture for S3 bucket
       - name: Get S3 Bucket Name
         id: bucket
         working-directory: terraform/environments/devel
         run: |
           set -euo pipefail
-
-          # capture terraform stdout+stderr; fail if command fails
-          RAW=$(terraform output -raw website_bucket_name 2>&1) || {
-            echo "ERROR: terraform output failed while getting website_bucket_name:"
-            echo "$RAW"
-            exit 1
-          }
-
-          # strip ANSI escape sequences (use perl which handles \e reliably),
-          # remove CRs and trim whitespace
-          BUCKET=$(printf '%s' "$RAW" \
-            | perl -pe 's/\e\[[0-9;]*[mK]//g' \
-            | tr -d '\r' \
-            | awk '{$1=$1};1')
-
-          if [ -z "$BUCKET" ]; then
-            echo "ERROR: cleaned website_bucket_name is empty. Raw output:"
-            echo "$RAW"
-            exit 1
-          fi
-
-          echo "bucket_name=$BUCKET" >> "$GITHUB_OUTPUT"
+          BUCKET=$(terraform output -raw website_bucket_name 2>/dev/null | tr -d '\r\n')
+          echo "bucket_name=${BUCKET}" >> $GITHUB_OUTPUT
 
       - name: Sync Build to S3
         run: |
           aws s3 sync build/ s3://${{ steps.bucket.outputs.bucket_name }}/ --delete
 
+      # ✅ FIXED: Clean Terraform output capture for CloudFront ID
       - name: Get CloudFront Distribution ID
         id: cloudfront
         working-directory: terraform/environments/devel
         run: |
           set -euo pipefail
-
-          RAW=$(terraform output -raw cloudfront_distribution_id 2>&1) || {
-            echo "ERROR: terraform output failed while getting cloudfront_distribution_id:"
-            echo "$RAW"
-            exit 1
-          }
-
-          DIST_ID=$(printf '%s' "$RAW" \
-            | perl -pe 's/\e\[[0-9;]*[mK]//g' \
-            | tr -d '\r' \
-            | awk '{$1=$1};1')
-
-          if [ -z "$DIST_ID" ]; then
-            echo "ERROR: cleaned cloudfront_distribution_id is empty. Raw output:"
-            echo "$RAW"
-            exit 1
-          fi
-
-          echo "distribution_id=$DIST_ID" >> "$GITHUB_OUTPUT"
+          DIST_ID=$(terraform output -raw cloudfront_distribution_id 2>/dev/null | tr -d '\r\n')
+          echo "distribution_id=${DIST_ID}" >> $GITHUB_OUTPUT
 
       - name: Invalidate CloudFront Cache
         run: |
@@ -116,7 +81,6 @@ jobs:
         working-directory: terraform/environments/devel
         run: |
           set -euo pipefail
-          echo "Deployment to Development environment successful!"
-          terraform output -raw cloudfront_domain_name 2>/dev/null \
-            | perl -pe 's/\e\[[0-9;]*[mK]//g' \
-            | tr -d '\r' || true
+          echo "✅ Deployment to Development environment successful!"
+          echo "CloudFront URL:"
+          terraform output -raw cloudfront_domain_name 2>/dev/null | tr -d '\r\n' || true
