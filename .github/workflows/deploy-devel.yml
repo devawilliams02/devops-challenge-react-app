@@ -1,9 +1,8 @@
 name: Deploy to Development
 
-on: 
+on:
   push:
-    branches:
-      - devel
+    branches: [ devel ]
 
 jobs:
   deploy:
@@ -28,18 +27,19 @@ jobs:
         run: npm run build
         env:
           REACT_APP_ENV: devel
-
+        
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ap-south-1
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.5.0
+          terraform_wrapper: false  # avoid ::debug wrapper output
 
       - name: Terraform Init
         working-directory: terraform/environments/devel
@@ -49,31 +49,43 @@ jobs:
         working-directory: terraform/environments/devel
         run: terraform apply -auto-approve
 
-      - name: Get S3 Bucket Name
-        id: bucket
+      # Get S3 bucket name from Terraform outputs
+      - name: Get website bucket name
+        id: tf_output
         working-directory: terraform/environments/devel
+        shell: bash
         run: |
-          BUCKET=$(terraform output -raw website_bucket_name)
-          echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          BUCKET_NAME="$(terraform output -raw website_bucket_name | tr -d '\r')"
+          echo "bucket_name=${BUCKET_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Sync Build to S3
+      - name: Deploy to S3
+        shell: bash
         run: |
-          aws s3 sync build/ s3://${{ steps.bucket.outputs.bucket_name }}/ --delete
+          echo "Deploying to bucket: ${{ steps.tf_output.outputs.bucket_name }}"
+          aws s3 sync build/ "s3://${{ steps.tf_output.outputs.bucket_name }}/" --delete
 
+      # Get CloudFront distribution ID and invalidate cache
       - name: Get CloudFront Distribution ID
         id: cloudfront
         working-directory: terraform/environments/devel
+        shell: bash
         run: |
-          DIST_ID=$(terraform output -raw cloudfront_distribution_id)
-          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          DIST_ID="$(terraform output -raw cloudfront_distribution_id | tr -d '\r')"
+          echo "distribution_id=${DIST_ID}" >> "$GITHUB_OUTPUT"
 
       - name: Invalidate CloudFront Cache
+        shell: bash
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${{ steps.cloudfront.outputs.distribution_id }} \
+            --distribution-id "${{ steps.cloudfront.outputs.distribution_id }}" \
             --paths "/*"
 
       - name: Deployment Complete
+        working-directory: terraform/environments/devel
+        shell: bash
         run: |
           echo "Deployment to Development environment successful!"
-          terraform output -raw cloudfront_domain_name
+          echo -n "CloudFront URL: "
+          terraform output -raw cloudfront_domain_name | tr -d '\r'
