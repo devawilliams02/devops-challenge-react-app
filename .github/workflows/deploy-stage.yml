@@ -35,21 +35,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
-      # ✅ Ensure Terraform backend S3 bucket exists before init
-      - name: Ensure Terraform backend S3 bucket exists
-        run: |
-          BUCKET_NAME="terraform-state-stage"
-          echo "Checking if backend bucket $BUCKET_NAME exists..."
-          if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-            echo "Bucket not found. Creating..."
-            aws s3api create-bucket \
-              --bucket "$BUCKET_NAME" \
-              --region ap-south-1 \
-              --create-bucket-configuration LocationConstraint=ap-south-1
-          else
-            echo "Bucket already exists."
-          fi
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -104,3 +89,4 @@ jobs:
           echo "✅ Deployment to Stage environment successful!"
           echo -n "🌐 CloudFront URL: "
           terraform output -raw cloudfront_domain_name | tr -d '\r'
+
