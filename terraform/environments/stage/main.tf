@@ -7,7 +7,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket         = "devawilliams-devopschallenge-terraform-state"
+    bucket         = "devawilliams-devopschallenge-terraform-state-ap-south-1"
     key            = "stage/terraform.tfstate"
     region         = "ap-south-1"
     encrypt        = true
