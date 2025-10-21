@@ -2,11 +2,14 @@ name: Deploy (multi-env)
 
 on:
   push:
-    branches: [dev, stage, prod]
+    branches:
+      - dev
+      - stage
+      - prod
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Target environment'
+        description: "Target environment"
         type: choice
         required: true
         options:
@@ -15,18 +18,17 @@ on:
           - prod
         default: dev
 
-env:
-  # Resolve environment from dispatch input or branch name
-  DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
-
 jobs:
   deploy:
-    name: Deploy to ${{ env.DEPLOY_ENV }} environment
+    name: Deploy to ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }} environment
     runs-on: ubuntu-latest
-    environment: ${{ env.DEPLOY_ENV }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
     concurrency:
-      group: deploy-${{ env.DEPLOY_ENV }}
+      group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
       cancel-in-progress: false
+
+    env:
+      DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
 
     steps:
       - name: Checkout Code
