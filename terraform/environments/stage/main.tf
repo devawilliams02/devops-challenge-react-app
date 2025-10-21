@@ -9,7 +9,7 @@ terraform {
   backend "s3" {
     bucket         = "devawilliams-devopschallenge-terraform-state"
     key            = "stage/terraform.tfstate"
-    region         = "us-east-1"
+    region         = "ap-south-1"
     encrypt        = true
     dynamodb_table = "terraform-state-lock"
   }
