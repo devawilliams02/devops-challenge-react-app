@@ -34,7 +34,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
+          aws-region: us-east-1
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -49,37 +49,11 @@ jobs:
         working-directory: terraform/environments/devel
         run: terraform apply -auto-approve
 
-      - name: Debug Terraform Output
-        working-directory: terraform/environments/devel
-        run: terraform output website_bucket_name
-
       - name: Get S3 Bucket Name
         id: bucket
         working-directory: terraform/environments/devel
         shell: bash
         run: |
-          BUCKET=$(terraform output -raw website_bucket_name)
-          echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
-
-      - name: Sync Build to S3
-        run: |
-          aws s3 sync build/ s3://${{ steps.bucket.outputs.bucket_name }}/ --delete
-
-      - name: Get CloudFront Distribution ID
-        id: cloudfront
-        working-directory: terraform/environments/devel
-        shell: bash
-        run: |
-          DIST_ID=$(terraform output -raw cloudfront_distribution_id)
-          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
-
-      - name: Invalidate CloudFront Cache
-        run: |
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ steps.cloudfront.outputs.distribution_id }} \
-            --paths "/*"
-
-      - name: Deployment Complete
-        run: |
-          echo "Deployment to Development environment successful!"
-          terraform output -raw cloudfront_domain_name
+          set -euo pipefail
+          RAW=$(terraform output -raw website_bucket_name 2>&1) || {
+            echo "ERROR: terraform output failed while getting website_bucket_n
