@@ -49,42 +49,43 @@ jobs:
         working-directory: terraform/environments/devel
         run: terraform apply -auto-approve
 
-      # ✅ FIXED: Clean Terraform output capture for S3 bucket
-      - name: Get website bucket name
+      # ✅ Cleanly get S3 bucket name
+      - name: Get S3 bucket name from Terraform
         id: tf_output
         run: |
-           echo "Fetching website_bucket_name from Terraform outputs..."
-           BUCKET_NAME=$(terraform -chdir=terraform/environments/devel output -raw website_bucket_name)
-           echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          cd terraform/environments/devel
+          echo "Fetching website_bucket_name from Terraform outputs..."
+          BUCKET_NAME=$(terraform output -raw website_bucket_name 2>/dev/null | tr -d '\r')
+          echo "bucket_name=${BUCKET_NAME}" >> $GITHUB_ENV
+          echo "✅ Bucket name: ${BUCKET_NAME}"
 
+      # ✅ Deploy to S3 using env variable
       - name: Deploy to S3
         run: |
-             echo "Deploying to bucket: ${{ steps.tf_output.outputs.bucket_name }}"
-             aws s3 sync build/ s3://${{ steps.tf_output.outputs.bucket_name }}/ --delete
+          echo "Deploying to bucket: ${bucket_name}"
+          aws s3 sync build/ s3://${bucket_name}/ --delete
 
-      - name: Sync Build to S3
-        run: |
-          aws s3 sync build/ s3://${{ steps.bucket.outputs.bucket_name }}/ --delete
-
-      # ✅ FIXED: Clean Terraform output capture for CloudFront ID
+      # ✅ Get CloudFront distribution ID safely
       - name: Get CloudFront Distribution ID
         id: cloudfront
-        working-directory: terraform/environments/devel
         run: |
-          set -euo pipefail
-          DIST_ID=$(terraform output -raw cloudfront_distribution_id 2>/dev/null | tr -d '\r\n')
-          echo "distribution_id=${DIST_ID}" >> $GITHUB_OUTPUT
+          cd terraform/environments/devel
+          echo "Fetching CloudFront Distribution ID..."
+          DIST_ID=$(terraform output -raw cloudfront_distribution_id 2>/dev/null | tr -d '\r')
+          echo "distribution_id=${DIST_ID}" >> $GITHUB_ENV
+          echo "✅ CloudFront Distribution ID: ${DIST_ID}"
 
+      # ✅ Invalidate CloudFront cache
       - name: Invalidate CloudFront Cache
         run: |
+          echo "Invalidating CloudFront cache for distribution: ${distribution_id}"
           aws cloudfront create-invalidation \
-            --distribution-id ${{ steps.cloudfront.outputs.distribution_id }} \
+            --distribution-id ${distribution_id} \
             --paths "/*"
 
       - name: Deployment Complete
-        working-directory: terraform/environments/devel
         run: |
-          set -euo pipefail
+          cd terraform/environments/devel
           echo "✅ Deployment to Development environment successful!"
           echo "CloudFront URL:"
           terraform output -raw cloudfront_domain_name 2>/dev/null | tr -d '\r\n' || true
