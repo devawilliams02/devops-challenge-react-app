@@ -12,79 +12,61 @@ jobs:
     environment: devel
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+    - name: Checkout Code
+      uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '15'
-          cache: 'npm'
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
 
-      - name: Install Dependencies
-        run: npm install
+    - name: Install Dependencies
+      run: npm ci
 
-      - name: Build Application
-        run: npm run build
-        env:
-          REACT_APP_ENV: devel
+    - name: Build App
+      run: npm run build
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.9.8
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.0
+    - name: Terraform Init & Apply
+      run: |
+        cd terraform/environments/devel
+        terraform init -reconfigure
+        terraform apply -auto-approve
 
-      - name: Terraform Init
-        working-directory: terraform/environments/devel
-        run: terraform init
+    - name: Get S3 bucket name from Terraform
+      id: tf_output
+      run: |
+        cd terraform/environments/devel
+        echo "Fetching website_bucket_name from Terraform outputs..."
+        BUCKET_NAME=$(terraform output -raw website_bucket_name)
+        echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
 
-      - name: Terraform Apply
-        working-directory: terraform/environments/devel
-        run: terraform apply -auto-approve
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-south-1   # change region if needed
 
-      # ✅ FIXED: Clean Terraform output capture for S3 bucket
-      - name: Get S3 Bucket Name
-        id: bucket
-        working-directory: terraform/environments/devel
-        run: |
-          set -euo pipefail
-          echo "Fetching website_bucket_name from Terraform outputs..."
-          BUCKET=$(terraform output -raw website_bucket_name 2>/dev/null | tr -d '\r\n' | awk '{$1=$1};1')
-          echo "Clean bucket name: $BUCKET"
-          echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
+    - name: Deploy to S3
+      run: |
+        echo "Deploying to bucket: ${{ steps.tf_output.outputs.bucket_name }}"
+        aws s3 sync build/ s3://${{ steps.tf_output.outputs.bucket_name }}/ --delete
 
+    - name: Invalidate CloudFront cache
+      run: |
+        cd terraform/environments/devel
+        DISTRIBUTION_ID=$(terraform output -raw cloudfront_distribution_id)
+        echo "Invalidating CloudFront cache for distribution: $DISTRIBUTION_ID"
+        aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
 
-      - name: Sync Build to S3
-        run: |
-          echo "Deploying to bucket: ${{ steps.bucket.outputs.bucket_name }}"
-          aws s3 sync build/ s3://${{ steps.bucket.outputs.bucket_name }}/ --delete
-
-
-      # ✅ FIXED: Clean Terraform output capture for CloudFront ID
-      - name: Get CloudFront Distribution ID
-        id: cloudfront
-        working-directory: terraform/environments/devel
-        run: |
-          set -euo pipefail
-          DIST_ID=$(terraform output -raw cloudfront_distribution_id 2>/dev/null | tr -d '\r\n')
-          echo "distribution_id=${DIST_ID}" >> $GITHUB_OUTPUT
-
-      - name: Invalidate CloudFront Cache
-        run: |
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ steps.cloudfront.outputs.distribution_id }} \
-            --paths "/*"
-
-      - name: Deployment Complete
-        working-directory: terraform/environments/devel
-        run: |
+    - name: Deployment Complete
+      working-directory: terraform/environments/devel
+      run: |
           set -euo pipefail
           echo "✅ Deployment to Development environment successful!"
           echo "CloudFront URL:"
