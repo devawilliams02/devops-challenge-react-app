@@ -89,3 +89,4 @@ jobs:
           echo "Deployment to Development environment successful!"
           echo -n "CloudFront URL: "
           terraform output -raw cloudfront_domain_name | tr -d '\r'
+          
