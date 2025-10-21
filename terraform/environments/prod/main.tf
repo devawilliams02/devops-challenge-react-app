@@ -9,7 +9,7 @@ terraform {
 
   backend "s3" {
     bucket         = "devawilliams-devopschallenge-terraform-state-ap-south-1"
-    key            = "devel/terraform.tfstate"
+    key            = "prod/terraform.tfstate"
     region         = "ap-south-1"
     encrypt        = true
     dynamodb_table = "terraform-state-lock"
@@ -23,7 +23,7 @@ provider "aws" {
 # CloudFront + S3 setup using module
 module "cloudfront_s3" {
   source       = "../../modules/cloudfront-s3"
-  environment  = "devel"
+  environment  = "prod"
   project_name = var.project_name
   aws_region   = var.aws_region
 }
@@ -40,3 +40,4 @@ output "cloudfront_distribution_id" {
 output "cloudfront_domain_name" {
   value = module.cloudfront_s3.cloudfront_domain_name
 }
+
