@@ -55,12 +55,17 @@ jobs:
         working-directory: terraform/environments/devel
         run: |
           set -euo pipefail
-          BUCKET=$(terraform output -raw website_bucket_name 2>/dev/null | tr -d '\r\n')
-          echo "bucket_name=${BUCKET}" >> $GITHUB_OUTPUT
+          echo "Fetching website_bucket_name from Terraform outputs..."
+          BUCKET=$(terraform output -raw website_bucket_name 2>/dev/null | tr -d '\r\n' | awk '{$1=$1};1')
+          echo "Clean bucket name: $BUCKET"
+          echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
+
 
       - name: Sync Build to S3
         run: |
+          echo "Deploying to bucket: ${{ steps.bucket.outputs.bucket_name }}"
           aws s3 sync build/ s3://${{ steps.bucket.outputs.bucket_name }}/ --delete
+
 
       # ✅ FIXED: Clean Terraform output capture for CloudFront ID
       - name: Get CloudFront Distribution ID
