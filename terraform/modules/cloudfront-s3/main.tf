@@ -1,10 +1,8 @@
-# Generate a random suffix for unique bucket names 
+# Generate a random suffix for unique bucket names
 resource "random_id" "bucket_suffix" {
   byte_length = 4
 }
 
-# Get current AWS account ID
-data "aws_caller_identity" "current" {}
 
 # S3 Bucket for Website Hosting
 resource "aws_s3_bucket" "website" {
@@ -40,45 +38,6 @@ resource "aws_s3_bucket_acl" "logs" {
   depends_on = [aws_s3_bucket_ownership_controls.logs]
   bucket     = aws_s3_bucket.logs.id
   acl        = "log-delivery-write"
-}
-
-# ✅ Add S3 Bucket Policy for Logs (Fix for CloudFront AccessDenied)
-resource "aws_s3_bucket_policy" "logs" {
-  bucket = aws_s3_bucket.logs.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Sid: "AllowCloudFrontServiceToPutLogs",
-        Effect: "Allow",
-        Principal: {
-          Service: "cloudfront.amazonaws.com"
-        },
-        Action: [
-          "s3:PutObject"
-        ],
-        Resource: "${aws_s3_bucket.logs.arn}/*",
-        Condition: {
-          StringEquals: {
-            "AWS:SourceAccount": data.aws_caller_identity.current.account_id
-          }
-        }
-      },
-      {
-        Sid: "AllowBucketOwnerFullControl",
-        Effect: "Allow",
-        Principal: {
-          AWS: "*"
-        },
-        Action: [
-          "s3:GetBucketAcl",
-          "s3:PutBucketAcl"
-        ],
-        Resource: aws_s3_bucket.logs.arn
-      }
-    ]
-  })
 }
 
 # Block Public Access to Website Bucket
@@ -163,7 +122,6 @@ resource "aws_cloudfront_distribution" "website" {
     response_code      = 200
     response_page_path = "/index.html"
   }
-
   custom_error_response {
     error_code         = 403
     response_code      = 200
@@ -180,7 +138,7 @@ resource "aws_cloudfront_distribution" "website" {
     cloudfront_default_certificate = true
   }
 
-  # ✅ Logging Configuration (fixed permissions)
+  # Logging Configuration
   logging_config {
     include_cookies = false
     bucket          = aws_s3_bucket.logs.bucket_domain_name
