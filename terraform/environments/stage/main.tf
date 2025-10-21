@@ -9,7 +9,7 @@ terraform {
   backend "s3" {
     bucket         = "devawilliams-devopschallenge-terraform-state"
     key            = "stage/terraform.tfstate"
-    region         = "us-east-1"
+    region         = "ap-south-1"
     encrypt        = true
     dynamodb_table = "terraform-state-lock"
   }
@@ -24,4 +24,17 @@ module "cloudfront_s3" {
   environment = "stage"
   project_name = var.project_name
   aws_region  = var.aws_region
+}
+
+# Add these outputs (used by GitHub Actions)
+output "website_bucket_name" {
+  value = module.cloudfront_s3.website_bucket_name
+}
+
+output "cloudfront_distribution_id" {
+  value = module.cloudfront_s3.cloudfront_distribution_id
+}
+
+output "cloudfront_domain_name" {
+  value = module.cloudfront_s3.cloudfront_domain_name
 }

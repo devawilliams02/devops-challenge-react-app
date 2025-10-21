@@ -40,3 +40,4 @@ output "cloudfront_distribution_id" {
 output "cloudfront_domain_name" {
   value = module.cloudfront_s3.cloudfront_domain_name
 }
+
