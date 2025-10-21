@@ -3,7 +3,7 @@ name: Deploy (multi-env)
 on:
   push:
     branches:
-      - dev
+      - devel
       - stage
       - prod
   workflow_dispatch:
@@ -13,10 +13,10 @@ on:
         type: choice
         required: true
         options:
-          - dev
+          - devel
           - stage
           - prod
-        default: dev
+        default: devel
 
 jobs:
   deploy:
