@@ -1,4 +1,4 @@
-name: Deploy (multi-env)
+name: Continuous Deployment (multi-env)
 
 on:
   push:
@@ -107,5 +107,3 @@ jobs:
           echo "Deployment to ${{ env.DEPLOY_ENV }} environment successful!"
           echo -n "CloudFront URL: "
           terraform output -raw cloudfront_domain_name | tr -d '\r'
-
-          #testcmd
